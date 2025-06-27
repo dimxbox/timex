@@ -1,0 +1,8 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "DefaultEndpointsProtocol=https;EndpointSuffix=core.windows.net;AccountName=timex;AccountKey=qimuTHdjqvtsfS0J7jx71NRZLuyfqyxxOLHdEw46WYQKltT2wDAV6/esgnvGFXoW+RbUynsPsFS2+AStzs908w==;BlobEndpoint=https://timex.blob.core.windows.net/;FileEndpoint=https://timex.file.core.windows.net/;QueueEndpoint=https://timex.queue.core.windows.net/;TableEndpoint=https://timex.table.core.windows.net/",
+    "FUNCTIONS_WORKER_RUNTIME": "python",
+    "timexdata_STORAGE": "DefaultEndpointsProtocol=https;EndpointSuffix=core.windows.net;AccountName=timex;AccountKey=qimuTHdjqvtsfS0J7jx71NRZLuyfqyxxOLHdEw46WYQKltT2wDAV6/esgnvGFXoW+RbUynsPsFS2+AStzs908w==;BlobEndpoint=https://timex.blob.core.windows.net/;FileEndpoint=https://timex.file.core.windows.net/;QueueEndpoint=https://timex.queue.core.windows.net/;TableEndpoint=https://timex.table.core.windows.net/"
+  }
+}
