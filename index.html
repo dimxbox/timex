@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Report Tools</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .table-container {
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <div class="container mx-auto p-4">
+        <div class="max-w-5xl mx-auto bg-white rounded-xl shadow-lg p-4 sm:p-6">
+
+            <header class="mb-6 border-b pb-3">
+                <h1 class="text-2xl font-bold text-gray-900">API Report Viewer</h1>
+                <p class="text-gray-500 mt-1 text-sm">Enter details to fetch a report from the API.</p>
+            </header>
+
+            <form id="reportForm" class="space-y-4">
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div class="sm:col-span-2">
+                        <label for="identity" class="block text-xs font-medium text-gray-700 mb-1">Identity (required)</label>
+                        <div class="flex items-center">
+                            <select id="identity" name="identity" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm" required>
+                                <option value="" disabled selected>Loading identities...</option>
+                            </select>
+                            <button type="button" id="refreshIdentities" class="ml-2 p-2 text-indigo-600 hover:text-indigo-800 rounded-full hover:bg-indigo-50">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="daily_reports" class="block text-xs font-medium text-gray-700 mb-1">Report Date (optional)</label>
+                        <input type="text" id="daily_reports" name="daily_reports" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm" placeholder="YYYY-MM-DD">
+                    </div>
+                </div>
+                <div>
+                    <button type="submit" id="submitButton" class="w-full sm:w-auto inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">
+                        Get Report
+                    </button>
+                </div>
+            </form>
+
+            <div id="statusMessage" class="mt-6 text-center p-3 rounded-md hidden"></div>
+            <div id="resultsContainer" class="mt-6 hidden"></div>
+
+            <hr class="my-8">
+
+            <header class="mb-6 border-b pb-3">
+                <h1 class="text-2xl font-bold text-gray-900">Upload Report File</h1>
+                <p class="text-gray-500 mt-1 text-sm">Select a CSV file to upload and process.</p>
+            </header>
+
+            <form id="uploadForm" class="space-y-4">
+                <div>
+                    <label for="fileInput" class="block text-xs font-medium text-gray-700 mb-1">CSV File (required)</label>
+                    <input type="file" id="fileInput" name="file" accept=".csv" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100" required>
+                </div>
+                <div>
+                    <button type="submit" id="uploadButton" class="w-full sm:w-auto inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors">
+                        Upload File
+                    </button>
+                </div>
+            </form>
+
+            <div id="uploadStatusMessage" class="mt-6 text-center p-3 rounded-md hidden"></div>
+
+        </div>
+    </div>
+
+    <script>
+        // API Endpoints
+        const API_URL = 'https://processingtimex-cdhbdsdgfefqh6cj.germanywestcentral-01.azurewebsites.net/api/reports';
+        const IDENTITIES_URL = API_URL.replace('/reports', '/identities');
+
+        // --- Identity Dropdown Functionality ---
+        async function loadIdentities() {
+            const identitySelect = document.getElementById('identity');
+            const refreshBtn = document.getElementById('refreshIdentities');
+
+            try {
+                refreshBtn.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                `;
+
+                const response = await fetch(IDENTITIES_URL);
+                if (!response.ok) throw new Error('Failed to fetch identities');
+
+                const data = await response.json();
+                identitySelect.innerHTML = '<option value="" disabled selected>Select an identity...</option>';
+
+                data.identities.forEach(id => {
+                    const option = document.createElement('option');
+                    option.value = id;
+                    option.textContent = id;
+                    identitySelect.appendChild(option);
+                });
+
+            } catch (error) {
+                console.error('Error loading identities:', error);
+                identitySelect.innerHTML = '<option value="" disabled selected>Error loading identities</option>';
+            } finally {
+                refreshBtn.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                `;
+            }
+        }
+
+        // Load identities when page loads and setup refresh button
+        document.addEventListener('DOMContentLoaded', () => {
+            loadIdentities();
+            document.getElementById('refreshIdentities').addEventListener('click', loadIdentities);
+        });
+
+        const reportForm = document.getElementById('reportForm');
+        const submitButton = document.getElementById('submitButton');
+        const statusMessage = document.getElementById('statusMessage');
+        const resultsContainer = document.getElementById('resultsContainer');
+        let chartInstances = [];
+
+        reportForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const identity = document.getElementById('identity').value.trim();
+            const dailyReportsDate = document.getElementById('daily_reports').value.trim();
+            resultsContainer.innerHTML = '';
+            resultsContainer.classList.add('hidden');
+            statusMessage.classList.add('hidden');
+            submitButton.disabled = true;
+            submitButton.textContent = 'Fetching...';
+            chartInstances.forEach(chart => chart.destroy());
+            chartInstances = [];
+            const requestBody = { identity };
+            if (dailyReportsDate) {
+                if (/^\d{4}-\d{2}-\d{2}$/.test(dailyReportsDate)) {
+                    requestBody.daily_reports = dailyReportsDate;
+                } else {
+                    showStatus('Invalid date format. Please use YYYY-MM-DD.', 'bg-red-100', 'text-red-800', statusMessage);
+                    submitButton.disabled = false;
+                    submitButton.textContent = 'Get Report';
+                    return;
+                }
+            }
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestBody)
+                });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Network error: ${response.status} ${response.statusText}. ${errorText}`);
+                }
+                const data = await response.json();
+                if (!data || !data.daily_reports || Object.keys(data.daily_reports).length === 0) {
+                    showStatus('No data found for the specified parameters.', 'bg-yellow-100', 'text-yellow-800', statusMessage);
+                    return;
+                }
+                renderReport(data);
+                resultsContainer.classList.remove('hidden');
+                resultsContainer.classList.add('fade-in');
+            } catch (error) {
+                console.error('API request failed:', error);
+                showStatus(`Error: ${error.message}`, 'bg-red-100', 'text-red-800', statusMessage);
+            } finally {
+                submitButton.disabled = false;
+                submitButton.textContent = 'Get Report';
+            }
+        });
+
+        function showStatus(message, bgColor, textColor, element) {
+            element.textContent = message;
+            element.className = `mt-6 text-center p-3 rounded-md text-sm ${bgColor} ${textColor}`;
+            element.classList.remove('hidden');
+        }
+
+        function renderReport(data) {
+            resultsContainer.innerHTML = '';
+            const generalInfoHtml = `
+                <div class="p-4 bg-gray-50 rounded-lg border mb-6">
+                     <h2 class="text-lg font-semibold text-gray-800 mb-2">General Information</h2>
+                     <p class="text-sm"><span class="font-medium">Identity:</span> ${data.identity}</p>
+                     <p class="text-sm"><span class="font-medium">Last Updated (UTC):</span> ${new Date(data.report_updated_utc).toLocaleString('en-GB')}</p>
+                </div>
+            `;
+            resultsContainer.insertAdjacentHTML('beforeend', generalInfoHtml);
+            for (const date in data.daily_reports) {
+                if (Object.hasOwnProperty.call(data.daily_reports, date)) {
+                    const dayData = data.daily_reports[date];
+                    const chartCanvasId = `activityChart-${date}`;
+                    const dayReportHtml = `
+                        <div class="border rounded-lg p-4 mb-6 fade-in">
+                            <h2 class="text-xl font-bold text-gray-900 mb-4 border-b pb-2">Report for: ${date}</h2>
+                            <div class="p-4 bg-gray-50 rounded-lg border mb-6">
+                                <h3 class="text-lg font-semibold text-gray-800 mb-3">Activity Summary</h3>
+                                <div class="relative h-64"><canvas id="${chartCanvasId}"></canvas></div>
+                            </div>
+                            <div id="tables-for-${date}"></div>
+                        </div>
+                    `;
+                    resultsContainer.insertAdjacentHTML('beforeend', dayReportHtml);
+                    renderActivityChart(dayData, chartCanvasId);
+                    const tablesContainer = document.getElementById(`tables-for-${date}`);
+                    for (const activityType in dayData) {
+                        const activityData = dayData[activityType];
+                        const activityTitle = activityType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                        const tableHtml = `
+                            <div class="mb-6">
+                                <div class="flex justify-between items-baseline mb-2">
+                                    <h3 class="text-md font-semibold text-gray-700">${activityTitle}</h3>
+                                    <p class="text-xs text-gray-600">Total Time: <span class="font-bold">${Math.round(activityData.total_minutes) >= 60 ? (activityData.total_minutes / 60).toFixed(2) + ' hrs' : Math.round(activityData.total_minutes) + ' mins'}</span></p>
+                                </div>
+                                <div class="table-container rounded-lg border border-gray-200">
+                                    <table class="min-w-full divide-y divide-gray-200">
+                                        <thead class="bg-gray-50"><tr>
+                                            <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Application</th>
+                                            <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                                            <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Blocked Categories</th>
+                                            <th scope="col" class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Minutes</th>
+                                        </tr></thead>
+                                        <tbody class="bg-white divide-y divide-gray-200 text-sm">
+                                            ${activityData.sites.map(site => `
+                                                <tr>
+                                                    <td class="px-4 py-2 whitespace-nowrap font-medium text-gray-900">${site.Application || 'N/A'}</td>
+                                                    <td class="px-4 py-2 whitespace-nowrap text-gray-500">${site['Application Category'] || 'N/A'}</td>
+                                                    <td class="px-4 py-2 whitespace-nowrap text-gray-500">${site['Blocked Categories'] || 'None'}</td>
+                                                    <td class="px-4 py-2 whitespace-nowrap text-gray-500 text-right">${Math.round(site.minutes) >= 60 ? (site.minutes / 60).toFixed(2) + ' hrs' : Math.round(site.minutes) + ' mins'}</td>
+                                                </tr>
+                                            `).join('')}
+                                            ${activityData.sites.length === 0 ? `<tr><td colspan="4" class="text-center py-4 text-gray-500">No activity data available.</td></tr>` : ''}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>`;
+                        tablesContainer.insertAdjacentHTML('beforeend', tableHtml);
+                    }
+                }
+            }
+        }
+
+        function renderActivityChart(dayData, canvasId) {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            const labels = [];
+            const dataPoints = [];
+            if (dayData.work_activity) { labels.push('Work Activity'); dataPoints.push(dayData.work_activity.total_minutes); }
+            if (dayData.contextual_work_activity) { labels.push('Contextual Work'); dataPoints.push(dayData.contextual_work_activity.total_minutes); }
+            if (dayData.non_work_activity) { labels.push('Non-Work Activity'); dataPoints.push(dayData.non_work_activity.total_minutes); }
+            const newChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Total Minutes',
+                        data: dataPoints,
+                        backgroundColor: ['rgba(59, 130, 246, 0.7)', 'rgba(16, 185, 129, 0.7)', 'rgba(239, 68, 68, 0.7)'],
+                        borderColor: ['rgba(59, 130, 246, 1)', 'rgba(16, 185, 129, 1)', 'rgba(239, 68, 68, 1)'],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: {
+                                font: { size: 10 }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.label || '';
+                                    if (label) { label += ': '; }
+                                    if (context.parsed !== null) { label += context.parsed.toFixed(2) + ' minutes'; }
+                                    return label;
+                                }
+                            }
+                        },
+                        datalabels: {
+                            formatter: (value, ctx) => {
+                                const total = ctx.chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
+                                return ((value / total) * 100).toFixed(1) + '%';
+                            },
+                            color: '#4B5563',
+                            font: {
+                                weight: 'normal',
+                                size: 10
+                            }
+                        }
+                    }
+                },
+                plugins: [ChartDataLabels]
+            });
+            chartInstances.push(newChart);
+        }
+
+        // --- File Uploader Script ---
+        const uploadForm = document.getElementById('uploadForm');
+        const fileInput = document.getElementById('fileInput');
+        const uploadButton = document.getElementById('uploadButton');
+        const uploadStatusMessage = document.getElementById('uploadStatusMessage');
+
+        uploadForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        const file = fileInput.files[0];
+        if (!file) {
+            showStatus('Please select a file to upload.', 'bg-red-100', 'text-red-800', uploadStatusMessage);
+            return;
+        }
+
+        // Reset UI
+        uploadButton.disabled = true;
+        uploadButton.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 animate-spin mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Uploading...
+        `;
+        uploadStatusMessage.classList.add('hidden');
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const response = await fetch(API_URL, {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(errorText || `HTTP error! status: ${response.status}`);
+            }
+
+            const result = await response.json();
+
+            // Show success message from API
+            const successMsg = `${result.message || 'File uploaded successfully'}. Identities found: ${result.identities?.join(', ') || 'none'}. Count: ${result.count || 0}.`;
+            showStatus(successMsg, 'bg-green-100', 'text-green-800', uploadStatusMessage);
+            uploadForm.reset();
+
+            // Refresh identities list after upload
+            loadIdentities();
+
+        } catch (error) {
+            console.error('File upload failed:', error);
+            let errorMsg = error.message;
+            
+            try {
+                const errorJson = JSON.parse(error.message);
+                errorMsg = errorJson.error || errorJson.message || error.message;
+            } catch (e) {
+            }
+            
+            showStatus(`Error: ${errorMsg}`, 'bg-red-100', 'text-red-800', uploadStatusMessage);
+        } finally {
+            uploadButton.disabled = false;
+            uploadButton.textContent = 'Upload File';
+        }
+    });
+    </script>
+</body>
+</html>
